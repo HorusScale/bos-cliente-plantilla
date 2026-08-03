@@ -1,7 +1,13 @@
 ---
 name: actualizar
-description: Subir este BOS a una versión más nueva de la plataforma. Consulta al registro cuál es la última publicada, mueve LAS DOS ANCLAS de versión que tiene el repo (la imagen del backend y el core de cada aplicación) y se niega a seguir si solo puede mover una. Úsala cuando se pida "actualizar el sistema", "subir de versión", "pasar a la última", "hay una versión nueva" o "actualizar la plataforma".
+description: Subir este BOS a una versión más nueva de la plataforma. Consulta al registro cuál es la última publicada, mueve LAS DOS ANCLAS de versión que tiene el repo (la imagen del backend y el core de cada aplicación), se niega a seguir si solo puede mover una, y al final sincroniza estas mismas instrucciones desde la plantilla. Úsala cuando se pida "actualizar el sistema", "subir de versión", "pasar a la última", "hay una versión nueva" o "actualizar la plataforma".
+instrucciones_para: "0.20.3"
 ---
+
+<!-- `instrucciones_para` es el SELLO: la versión de la plataforma que estas instrucciones
+     describen. No lo lee ningún cargador — lo lee el paso 5 de esta misma skill para avisar si las
+     instrucciones y el sistema se han separado. Se actualiza al sincronizar. -->
+
 
 # Actualizar este BOS
 
@@ -137,7 +143,75 @@ Si un build falla, lee el mensaje entero antes de tocar nada: estos errores vien
 
 ---
 
-## Paso 4 · La comprobación en pantalla — esta parte es del humano
+## Paso 4 · Sincronizar estas mismas instrucciones
+
+El procedimiento que estás leyendo **viaja con el producto**: describe la arquitectura de este repo,
+y esa arquitectura cambia entre versiones. Unas instrucciones que se quedan quietas mientras el
+sistema avanza acaban describiendo un repo que ya no existe — y se creen igual de bien.
+
+Por eso se traen desde la plantilla **cuando el producto se actualiza, y no entre medio**: quedan
+acopladas a la versión que el repo corre.
+
+```bash
+# La plantilla es PÚBLICA: este fetch no necesita credencial.
+PLANTILLA=HorusScale/bos-cliente-plantilla
+
+TMP=$(mktemp -d)
+curl -sL "https://codeload.github.com/${PLANTILLA}/tar.gz/refs/heads/main" | tar xz -C "$TMP"
+ORIGEN=$(find "$TMP" -maxdepth 1 -type d -name 'bos-cliente-plantilla-*')
+
+# REEMPLAZO, no fusión: lo local se sustituye entero.
+rm -rf .claude/skills && mkdir -p .claude
+cp -r "$ORIGEN/.claude/skills" .claude/skills
+rm -rf "$TMP"
+
+git status --short .claude/          # enseña qué cambió antes de commitear
+
+# Y se commitea: si no, el repo se queda sucio y el próximo que llegue no sabrá si eso
+# era el sync o un cambio a medio hacer.
+git add .claude/ && git commit -m "Sincronizar instrucciones desde la plantilla (X.Y.Z)" && git push
+```
+
+> **Reemplazo, no fusión, y es deliberado.** Si alguien editó estas instrucciones en el repo del
+> cliente, ese cambio se pierde aquí. Es lo que se quiere: el sitio para cambiarlas es la plantilla,
+> donde el cambio llega a todos. Un procedimiento bifurcado por repo es exactamente lo que este paso
+> viene a impedir. Si ves cambios locales que valga la pena conservar, **para y dilo** antes de
+> sobrescribir.
+
+### Comprobar el sello
+
+Cada skill lleva en su frontmatter `instrucciones_para: "X.Y.Z"` — la versión que describe. Tras
+sincronizar, compáralo con la versión a la que estás actualizando:
+
+```bash
+SELLO=$(grep -m1 'instrucciones_para:' .claude/skills/actualizar/SKILL.md | tr -d ' "' | cut -d: -f2)
+if [ -z "$SELLO" ]; then
+  echo "AVISO: las instrucciones sincronizadas NO llevan sello — son anteriores a que existiera."
+else
+  echo "instrucciones para: $SELLO   ·   actualizando a: X.Y.Z"
+fi
+```
+
+> **Un sello ausente no es un sello que casa.** Si la comparación se hiciera a secas, un fichero sin
+> `instrucciones_para` daría una cadena vacía y la línea saldría con un hueco donde debería ir una
+> cifra — leído deprisa, parece que no hay problema. Ausencia y coincidencia no son lo mismo, y aquí
+> se distinguen a propósito.
+
+- **Si no casan, AVISA — no bloquees.** Un desfase no impide actualizar: significa que la plantilla
+  aún no ha publicado instrucciones para esa versión. Dilo en el informe con las dos cifras, para
+  que quien lea sepa que el procedimiento va un paso por detrás del sistema.
+- **Este paso va al final a propósito.** Sustituye el fichero que estás ejecutando: las
+  instrucciones nuevas gobiernan **la próxima** actualización, no ésta. Terminar la actual con las
+  que ya venías usando evita cambiar de reglas a mitad de camino.
+
+> **Opción más fina, declarada y NO construida:** que la plantilla publique una etiqueta por cada
+> versión del producto, y que este paso traiga **la etiqueta que casa** con la versión destino en vez
+> de la rama principal. Eso convertiría el aviso en una garantía. Exige un paso nuevo en la
+> publicación del producto, así que hoy no está: se deja escrito para que se vea que se consideró.
+
+---
+
+## Paso 5 · La comprobación en pantalla — esta parte es del humano
 
 **Esta skill no puede hacer este paso y no lo simula.** Que los despliegues estén verdes solo dice
 que el sistema arrancó, no que sirva. Entrega este checklist a quien pueda mirar la pantalla:
