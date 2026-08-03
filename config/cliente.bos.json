@@ -1,0 +1,77 @@
+{
+  "_plantilla": "ESQUELETO DE PARTIDA. Todo lo de aquí es FORMA, no datos: no hay nada de ningún cliente. Renombra este fichero al id de tu cliente y ajusta las DOS rutas del Dockerfile para que coincidan. Las claves que empiezan por `_` son notas y el build las ignora. Este esqueleto está VALIDADO contra los guards reales del Molde (zonas↔superficies, roles, pipelines): es el mínimo que pasa, no el mínimo imaginable.",
+
+  "client": "cliente",
+  "label": "Nombre del Cliente",
+
+  "_zonas": "QUIÉN ENTRA. Una zona es el conjunto de áreas que abre un rol, con su `scope`: `own` ve su cartera + lo que no tiene dueño · `read_all` lee todo · `all` es CRUD completo · `app`/`team` son puertas a apps transversales, no de datos. DOS TRAMPAS MEDIDAS: (1) tiene que existir ALGUNA zona de scope `all`, o la gestión de formularios y de Ajustes queda inalcanzable para cualquiera; (2) si activas una capacidad, sus superficies piden una zona concreta — `access` aporta Usuarios y Roles, que piden una zona de scope `team`, y sin ella el build FALLA con «SUPERFICIE HUÉRFANA».",
+  "zonas": [
+    { "key": "operador", "label": "Operador", "scope": "own" },
+    { "key": "admin", "label": "Admin", "scope": "all" },
+    { "key": "gestor", "label": "Gestor", "scope": "team" }
+  ],
+
+  "_roles": "UN ROL ES ACCESO A UNA APP Y A UNA ZONA DENTRO DE ELLA: `accesos` mapea app → zona. Multi-rol es aditivo (un usuario porta N roles y ve la unión). `label` es el nombre de la policy en Directus: no lo repitas entre roles.",
+  "roles": [
+    { "key": "operador", "label": "Operador", "accesos": { "ventas": "operador" } },
+    { "key": "administrador", "label": "Administrador", "accesos": { "ventas": "admin", "admin": "gestor" } }
+  ],
+
+  "_team": "⚠ EL `password` ES OBLIGATORIO AQUÍ, Y VA EN CLARO. Si lo omites, el build NO falla: siembra una clave por defecto SIN AVISAR, y el usuario nace con una contraseña conocida y adivinable. Ponlo siempre, y cámbialo ANTES de construir. NO lo commitees con un valor real: este fichero vive en el repo del cliente y el historial de git no se borra. Lo sano es aplicar el equipo desde una copia local y dejar `team` vacío en el repo versionado.",
+  "team": [
+    {
+      "nombre": "Nombre Apellido",
+      "email": "persona@ejemplo.com",
+      "roles": ["administrador"],
+      "password": "CAMBIAR-ESTA-CLAVE"
+    }
+  ],
+
+  "_capabilities": "CAPACIDADES TRANSVERSALES (las de pipeline van DENTRO del pipeline). `access` es la que emite la RBAC a partir de `zonas` y `roles`: sin ella no hay permisos. Cada capacidad que enciendas puede aportar superficies que exigen su zona — ver la nota de `zonas`.",
+  "capabilities": ["access"],
+
+  "_apps": "LAS APPS Y SU LANZADOR VAN JUNTOS: en cuanto declaras `apps[]`, el build EXIGE `launcher_url` y se niega a construir sin ella (la marca del shell enlazaría a un botón muerto). `zonas` de cada app es su VOCABULARIO: un rol solo puede asignar una zona que la app admita.",
+  "launcher_url": "https://CAMBIAR-lanzador.ejemplo",
+  "apps": [
+    {
+      "id": "ventas",
+      "label": "Ventas",
+      "kind": "pipeline",
+      "url": "https://CAMBIAR-ventas.ejemplo",
+      "zonas": ["operador", "admin"]
+    },
+    {
+      "id": "admin",
+      "label": "Admin",
+      "kind": "transversal",
+      "url": "https://CAMBIAR-admin.ejemplo",
+      "zonas": ["gestor"]
+    }
+  ],
+
+  "_pipelines": "EL FLUJO. `canonical_object` es el expediente (llámalo como lo llame el negocio); `stages` son sus fases, y las terminales se marcan con `terminal_ok`/`terminal_ko`; `transitions` dice qué HECHO mueve a qué fase. Las capacidades de pipeline se declaran aquí dentro, no arriba.",
+  "pipelines": [
+    {
+      "id": "ventas",
+      "capabilities": ["canonical-object", "state-machine"],
+      "canonical_object": {
+        "name": "expedientes",
+        "singular": "Expediente",
+        "plural": "Expedientes",
+        "title_field": "titulo",
+        "owner_field": "responsable",
+        "pipeline_field": "fase",
+        "extra_fields": []
+      },
+      "stages": [
+        { "key": "nuevo", "label": "Nuevo", "initial": true },
+        { "key": "en_curso", "label": "En curso" },
+        { "key": "ganado", "label": "Ganado", "terminal_ok": true },
+        { "key": "perdido", "label": "Perdido", "terminal_ko": true }
+      ],
+      "transitions": [
+        { "on": "contacto", "to": "en_curso" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+# Imagen de una APLICACIÓN (front) del BOS de un cliente — parametrizada por FRONT_ID.
+#
+# Un front es una capa Nuxt fina sobre `@horusscale/horus-bos-core`. La app es SPA (ssr:false) pero el
+# core sirve una ruta de servidor (/api/bos-config) → el runtime es un Nitro node-server, NO estático.
+# Por eso `nuxt build` produce `.output/server/index.mjs` y el contenedor corre ese fichero.
+#
+# LA IMAGEN ES CONFIG-SPECIFIC, y por eso la construye el CLIENTE y no Horus: el core precomputa el
+# config efectivo EN BUILD desde `BOS_CONFIG` y lo hornea dentro. Una imagen de front pertenece a UN
+# config, es decir, a UN cliente. Lo que Horus publica es el core (npm) y `molde-base` (GHCR).
+# La URL de Directus NO se hornea: es `NUXT_PUBLIC_DIRECTUS_URL`, inyectada por entorno en runtime.
+#
+# ⚠ ESTE DOCKERFILE NECESITA UN ÁRBOL `fronts/<id>/` QUE **NO** VIENE EN ESTA PLANTILLA. Hoy los
+# fronts los genera Horus por cliente (ver README, §«Qué NO viene»). Sin ese árbol, el `npm run build
+# -w fronts/${FRONT_ID}` de abajo no tiene qué construir.
+#
+# ──────────────────────────────────────────────────────────────────────────────────────────────────
+# POR QUÉ ESTE FICHERO NO USA `--mount=type=secret`
+#
+# Lo usaba, y NINGÚN front llegó a construirse: hay builders de PaaS que NO soportan los secretos de
+# BuildKit — rechazan el Dockerfile EN EL PARSEO, antes de ejecutar una sola instrucción. Suponer una
+# capacidad del builder de destino nos mordió tres veces en un día.
+#
+# Esto es Dockerfile v1 PURO: multi-stage y ARG, sin una sola extensión de BuildKit (por eso tampoco
+# lleva la directiva `# syntax=`). Construye igual con BuildKit y con el builder clásico
+# (`DOCKER_BUILDKIT=0`) — medido con los dos.
+#
+# CÓMO SE QUEDA EL TOKEN FUERA DE LA IMAGEN (tres barreras; ninguna es «acordarse»):
+#   1. Solo la etapa `deps` DECLARA el ARG del token. `build` y `runtime` no lo declaran → el token no
+#      existe en su entorno: ni `nuxt build` ni ninguna capa publicada pueden hornearlo.
+#   2. El `.npmrc` nace y muere en el MISMO RUN (también si `npm ci` falla).
+#   3. `runtime` copia UN ARTEFACTO DECLARADO, jamás el workdir. La bisagra, y es todo el problema:
+#          COPY --from=build /app/fronts/${FRONT_ID}/.output ./.output   ← artefacto concreto: SEGURO
+#          COPY --from=build /app .                                      ← arrastra el workdir entero
+# ──────────────────────────────────────────────────────────────────────────────────────────────────
+#
+# El token del registry es OPCIONAL aquí, pero en la práctica hace falta: GitHub Packages EXIGE token
+# SIEMPRE, incluso para paquetes públicos (verificado: anónimo → HTTP 401).
+#
+# Build (el tag es DEL CLIENTE — la imagen lleva SU config dentro):
+#   docker build -f Dockerfile.front \
+#     --build-arg FRONT_ID=<id> \
+#     --build-arg BOS_CONFIG=config/cliente.bos.json \
+#     --build-arg MOLDE_REGISTRY_TOKEN="$MOLDE_REGISTRY_TOKEN" \
+#     -t <cliente>-front-<id>:X.Y.Z .
+
+ARG NODE_VERSION=24
+
+# ---- deps: la ÚNICA etapa que ve el token ---------------------------------------------------------
+FROM node:${NODE_VERSION}-alpine AS deps
+# Dos nombres para el mismo token: MOLDE_REGISTRY_TOKEN es el que documenta este repo y el que la
+# plataforma inyecta desde su secret store; NPM_TOKEN es el alias corto. Vacíos por defecto.
+ARG MOLDE_REGISTRY_TOKEN=""
+ARG NPM_TOKEN=""
+WORKDIR /app
+COPY . .
+# El .npmrc se escribe y se BORRA dentro de este mismo RUN. Si se borrase en un RUN posterior seguiría
+# VIVO en el filesystem final de la etapa, y un COPY ancho lo arrastraría a la imagen publicada.
+# El `rm` es incondicional (corre también si `npm ci` falla) y `exit $rc` no se traga el fallo.
+RUN TOKEN="${MOLDE_REGISTRY_TOKEN:-$NPM_TOKEN}"; \
+    if [ -n "$TOKEN" ]; then \
+      printf '@horusscale:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' \
+        "$TOKEN" > .npmrc; \
+    fi; \
+    npm ci; rc=$?; \
+    rm -f .npmrc; \
+    exit $rc
+
+# ---- build: NO declara el ARG del token → el token no existe en su entorno ------------------------
+# Aquí corre `nuxt build`. No puede hornear un token que no está en el env — ni por accidente, ni por
+# una dependencia curiosa que serialice process.env. Es imposibilidad, no vigilancia.
+FROM node:${NODE_VERSION}-alpine AS build
+ARG FRONT_ID=ventas
+ARG BOS_CONFIG=config/cliente.bos.json
+WORKDIR /app
+# Copia interna builder→builder (NUNCA a la imagen publicada): el árbol ya instalado, y sin .npmrc.
+COPY --from=deps /app ./
+# Identidad del front.
+ENV BOS_ACTIVE_PIPELINE=${FRONT_ID}
+# BOS_CONFIG ABSOLUTO (anclado a /app): `npm run build -w` fija el cwd al front, así que un config
+# RELATIVO no se resolvería — el config vive en la raíz del repo, no en fronts/<id>/.
+ENV BOS_CONFIG=/app/${BOS_CONFIG}
+RUN npm run build -w fronts/${FRONT_ID}
+
+# ---- runtime: LO QUE SE PUBLICA. Copia un artefacto declarado, jamás el workdir -------------------
+FROM node:${NODE_VERSION}-alpine AS runtime
+ARG FRONT_ID=ventas
+ENV NODE_ENV=production
+# Directus destino: se inyecta por entorno en runtime (secret-free, por-entorno). Placeholder vacío.
+ENV NUXT_PUBLIC_DIRECTUS_URL=""
+# Nitro node-server escucha en 0.0.0.0:3000 por defecto.
+ENV HOST=0.0.0.0
+ENV PORT=3000
+WORKDIR /app
+COPY --from=build /app/fronts/${FRONT_ID}/.output ./.output
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]
