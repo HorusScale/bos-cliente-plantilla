@@ -3,6 +3,11 @@
 Punto de partida del repo de **un cliente**. Se usa con el botón **«Use this template»** de GitHub:
 crea un repo nuevo con estos ficheros y sin el historial de esta plantilla.
 
+> **Cómo se llama el repo que crees: `<cliente>-bos`.** No `<cliente>-backend`: aquí no vive solo el
+> backend, sino la definición del sistema del cliente y las recetas de sus dos imágenes — y en la
+> forma a la que vamos, será pura definición del negocio. Un nombre que promete menos de lo que hay
+> envejece mal.
+
 Lo que hay aquí es **la cáscara**: el config del cliente y las recetas para construir sus imágenes.
 El producto —el motor, las 28 capacidades, el core de las aplicaciones— **no vive aquí**: viaja en la
 imagen base y en el paquete del core, ambos versionados. Por eso este repo es pequeño y se entiende
