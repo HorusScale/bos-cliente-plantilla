@@ -3,7 +3,7 @@
 Punto de partida del repo de **un cliente**. Se usa con el botón **«Use this template»** de GitHub:
 crea un repo nuevo con estos ficheros y sin el historial de esta plantilla.
 
-> **Cómo se llama el repo que crees: `<cliente>-bos`.** No `<cliente>-backend`: aquí no vive solo el
+> **Cómo se llama el repo que crees: `<cliente>-bos`.** Sin sufijo de capa: aquí no vive solo el
 > backend, sino la definición del sistema del cliente y las recetas de sus dos imágenes — y en la
 > forma a la que vamos, será pura definición del negocio. Un nombre que promete menos de lo que hay
 > envejece mal.
