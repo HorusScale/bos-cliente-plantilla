@@ -197,9 +197,12 @@ fi
 > cifra — leído deprisa, parece que no hay problema. Ausencia y coincidencia no son lo mismo, y aquí
 > se distinguen a propósito.
 
-- **Si no casan, AVISA — no bloquees.** Un desfase no impide actualizar: significa que la plantilla
-  aún no ha publicado instrucciones para esa versión. Dilo en el informe con las dos cifras, para
-  que quien lea sepa que el procedimiento va un paso por detrás del sistema.
+- **Si no casan, AVISA — no bloquees.** Un desfase no impide actualizar. Dilo en el informe con las
+  dos cifras, para que quien lea sepa que el procedimiento va un paso por detrás del sistema. Antes
+  de darlo por bueno, descarta la causa tonta: **el paquete descargable puede ir unos minutos por
+  detrás de la rama justo después de una publicación** (medido: recién publicado el sello, la
+  descarga aún traía la versión anterior; minutos después, ya no). Si acabas de sincronizar y el
+  sello no casa, repite la descarga antes de concluir que la plantilla va retrasada.
 - **Este paso va al final a propósito.** Sustituye el fichero que estás ejecutando: las
   instrucciones nuevas gobiernan **la próxima** actualización, no ésta. Terminar la actual con las
   que ya venías usando evita cambiar de reglas a mitad de camino.
