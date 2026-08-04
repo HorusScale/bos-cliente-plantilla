@@ -21,16 +21,21 @@ pantalla, y ese paso está aquí abajo con su nombre.
 ## Paso 0 · Mira qué hay en el repo antes de prometer nada
 
 ```bash
-ls -d fronts/*/ 2>/dev/null || echo "SIN fronts/"
+ls -d fronts/app/ 2>/dev/null || echo "SIN fronts/app"
 ```
 
-**Si no hay `fronts/`, léelo entero antes de continuar.** No es un error tuyo ni un fallo del repo:
-esta plantilla no trae las aplicaciones. Hoy se generan **por cliente** y no son autoservicio.
+**Si no hay `fronts/app`, léelo entero antes de continuar.** No es un error tuyo ni un fallo del
+repo: esta plantilla no trae la aplicación. Hoy se genera **por cliente** y no es autoservicio.
+
+> **Una sola cáscara sirve TODAS las apps del cliente — no busques una carpeta por app.** Antes
+> había un directorio de front por aplicación; hoy hay UNA cáscara (`fronts/app`) que arranca
+> distinta según la variable de entorno con la que se ejecute (ver paso 5). Contar carpetas ya no
+> dice cuántas aplicaciones tiene el cliente — eso lo dice `config/<cliente>.bos.json`.
 
 Consecuencia práctica, dicha de frente:
 
 - **El backend sí se puede montar entero** con lo que hay. Ese trabajo no está bloqueado.
-- **Las aplicaciones no**, y no hay forma de improvisarlas: sin ese árbol, el `Dockerfile.front` no
+- **La aplicación no**, y no hay forma de improvisarla: sin ese árbol, el `Dockerfile.front` no
   tiene qué construir.
 
 Así que el resultado honesto de esta guía, en un repo recién nacido, es **un backend en marcha y una
@@ -150,24 +155,49 @@ grep -n '^ARG.*TOKEN' Dockerfile.front
 
 ---
 
-## Paso 5 · Un servicio por aplicación
+## Paso 5 · UNA imagen, un servicio por aplicación
 
-Solo si el paso 0 encontró `fronts/`. **Una por carpeta**, y el identificador del servicio es el
-**nombre de la carpeta**:
+Solo si el paso 0 encontró `fronts/app`. La forma cambió: **se construye UNA imagen** (no una por
+aplicación) y **se arrancan N servicios desde esa misma imagen**, cada uno con distinta variable de
+entorno diciéndole qué aplicación servir.
+
+**Qué aplicaciones existen** — no se cuentan carpetas (siempre hay una sola): se leen del config.
+El lanzador siempre está; súmale cada flujo/transversal que el cliente vaya a usar:
+
+```bash
+python3 -c "
+import json
+c = json.load(open('config/<cliente>.bos.json'))
+apps = ['lanzador'] + [a['id'] for a in c.get('apps', []) if a.get('kind') in ('pipeline','transversal')]
+print('\n'.join(apps))
+"
+```
+
+**La imagen (una sola vez):**
 
 - **Receta:** `Dockerfile.front`.
-- **Variable de construcción:** `FRONT_ID` = nombre de la carpeta · `BOS_CONFIG` = ruta del fichero de
-  definición · más la credencial del paso 3.
-- **Variable de ejecución:** la dirección pública del backend, para que la aplicación sepa a quién
-  preguntar. El nombre exacto, otra vez sacado de la receta:
+- **Variable de construcción:** `BOS_CONFIG` = ruta del fichero de definición · más la credencial
+  del paso 3. `FRONT_ID` **ya no existe** — no lo declares.
+- Etiqueta la imagen del cliente y no la reconstruyas por aplicación: las N que vienen abajo
+  arrancan todas de esta misma imagen.
+
+**Los servicios (uno por aplicación, todos desde la imagen de arriba):**
+
+- **Variable de ejecución que identifica la app**: `NUXT_PUBLIC_BOS_APP` = el identificador exacto
+  (uno de los que listó el paso anterior). **Obligatoria — sin ella el contenedor no arranca**, y es
+  deliberado: un valor por defecto serviría otra aplicación en silencio, y un arranque que falla se
+  ve mientras que una pantalla equivocada no.
+- **Variable de ejecución que apunta al backend**: la dirección pública del backend, para que la
+  aplicación sepa a quién preguntar. El nombre exacto, sacado de la receta:
 
 ```bash
 grep -n 'ENV .*URL' Dockerfile.front
 ```
 
-> **La aplicación lleva la definición horneada dentro.** No se configura después: se construye para
-> este cliente. Por eso cada cambio de definición exige reconstruirla, y por eso una aplicación de un
-> cliente no sirve para otro.
+> **La imagen lleva la definición horneada dentro; la aplicación activa se elige AL ARRANCAR.** El
+> config se hornea en el build (por eso cada cambio de definición exige reconstruir la imagen, y por
+> eso la imagen de un cliente no sirve para otro) — pero QUÉ aplicación sirve cada contenedor se
+> decide con `NUXT_PUBLIC_BOS_APP` en el arranque, no en el build.
 
 ### Dos vías, y cuál es la fiable
 
@@ -178,8 +208,8 @@ grep -n 'ENV .*URL' Dockerfile.front
   **Esta vía siempre funciona**, así que si la automática se atasca no pelees con ella: cambia.
 
 En cualquiera de las dos, al terminar **enumera lo creado y compáralo con lo que debía existir**:
-un servicio de backend, uno por carpeta de aplicación, una base de datos. Un servicio de menos no
-avisa: simplemente falta una pantalla que nadie abrió todavía.
+un servicio de backend, uno por aplicación listada arriba (todos desde la MISMA imagen), una base de
+datos. Un servicio de menos no avisa: simplemente falta una pantalla que nadie abrió todavía.
 
 ---
 

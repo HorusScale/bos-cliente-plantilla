@@ -66,8 +66,8 @@ echo "── ANCLA 1: imagen del backend ──"
 # un comentario creyendo que es el ancla deja el repo igual y a ti convencido de lo contrario.
 grep -nE '^[[:space:]]*(ARG|FROM)[[:space:]].*MOLDE_VERSION' Dockerfile
 
-echo "── ANCLA 2: core de cada aplicación ──"
-grep -rn 'horus-bos-core' fronts/*/package.json 2>/dev/null || echo "(sin fronts/ en este repo)"
+echo "── ANCLA 2: core de la aplicación ──"
+grep -n 'horus-bos-core' fronts/app/package.json 2>/dev/null || echo "(sin fronts/app en este repo)"
 ```
 
 **ANCLA 1 — la imagen del backend.** No lleva número dentro del `Dockerfile`: se pasa al construir
@@ -75,55 +75,69 @@ grep -rn 'horus-bos-core' fronts/*/package.json 2>/dev/null || echo "(sin fronts
 variable del servicio en tu plataforma de despliegue, o el comando si construyes a mano. Ahí es donde
 hay que cambiarlo.
 
-**ANCLA 2 — el core de cada aplicación.** Un rango `^X.Y.Z` en el `package.json` de **cada** carpeta
-de `fronts/`, más el lockfile.
+**ANCLA 2 — el core de la aplicación.** UN NÚMERO EXACTO, sin rango, en `fronts/app/package.json` —
+`"@horusscale/horus-bos-core": "X.Y.Z"`, sin `^` — más el lockfile. Un solo fichero: hoy hay siempre
+una única cáscara (`fronts/app`), y la app que sirve cada arranque se elige en RUNTIME, no en build
+(ver paso 5 de `implementar`).
 
-> ### Por qué mover solo la imagen no basta, con números
-> El rango `^0.20.3` admite `0.20.4`, `0.20.9`… **pero no `0.21.0`**: cuando el primer número es `0`,
-> el acento circunflejo fija también el segundo. O sea:
+> ### Por qué es un número exacto y no un rango, con el incidente que lo forzó
+> Antes era `^X.Y.Z`. Un `npm ci` (lo que corre el build) **obedece al lockfile e ignora el
+> caret** — así que un lockfile viejo con un rango que "admitía" la versión nueva instalaba
+> igualmente **la vieja, en SILENCIO, con `rc=0`**. Medido en incidente real: un fix de marca
+> blanca tardó DOCE HORAS en llegar al cliente con todos los despliegues en verde.
 >
-> | Vas de → a | ¿La aplicación se mueve sola? |
-> |---|---|
-> | `0.20.3` → `0.20.4` | Sí. El rango ya lo admitía. |
-> | `0.20.3` → `0.21.0` | **No.** El backend sube y las aplicaciones se quedan atrás, en silencio. |
+> Con el número exacto, un lockfile desincronizado deja de ser una discrepancia silenciosa: `npm
+> ci` se **niega a correr** (`rc≠0`, error nombrando la versión que pide el lock contra la que
+> pide el pin). Es una guarda, no una limitación — el fallo ruidoso es la protección.
 >
-> Ese segundo caso es el que muerde: no falla nada, y el sistema queda partido en dos versiones.
+> Consecuencia práctica: **ningún salto de versión "se mueve solo".** Con rango, `0.20.3→0.20.4`
+> a veces se colaba sin tocar el ancla 2 (y eso era exactamente el problema). Con número exacto,
+> la aplicación NUNCA sube sin que alguien mueva su ancla explícitamente — no hay salto "pequeño"
+> que se salte esta sección.
 
 ### La guarda: dos o ninguna
 
-Antes de tocar un solo fichero, responde estas tres. Si alguna falla, **para y avísalo**; no dejes el
+Antes de tocar un solo fichero, responde estas dos. Si alguna falla, **para y avísalo**; no dejes el
 repo a medio mover:
 
 1. **¿Aparece el ancla 1?** Si `grep MOLDE_VERSION Dockerfile` no devuelve nada, este repo no tiene
    la forma que esta skill supone: no sigas a ciegas.
 2. **¿Puedes cambiar el ancla 1 de verdad?** No basta con verla: hace falta poder editar la variable
-   donde se dispara el build. Si no tienes ese acceso, **no toques el ancla 2**: dejarías las
-   aplicaciones pidiendo un core que el backend no acompaña.
-3. **¿Cuántas aplicaciones hay en `fronts/`?** Se mueven **todas**. Mover unas sí y otras no es la
-   misma avería, más difícil de ver.
+   donde se dispara el build. Si no tienes ese acceso, **no toques el ancla 2**: dejarías la
+   aplicación pidiendo un core que el backend no acompaña.
 
-> **Un repo SIN carpeta `fronts/` no es un caso de «solo una ancla».** Es un repo al que todavía no
-> le han generado las aplicaciones: entonces la única ancla que existe es la 1, y moverla es
-> correcto y completo. Dilo explícitamente al informar, para que nadie lo confunda con un cambio a
-> medias.
+> **Un repo SIN `fronts/app/`** no es un caso de «solo una ancla». Es un repo al que todavía no le
+> han generado la aplicación: entonces la única ancla que existe es la 1, y moverla es correcto y
+> completo. Dilo explícitamente al informar, para que nadie lo confunda con un cambio a medias.
 
 ### Hacer el cambio
 
 ```bash
-# Ancla 2, en todas las aplicaciones a la vez (sustituye X.Y.Z por la versión elegida)
-sed -i 's|"@horusscale/horus-bos-core": *"\^[0-9.]*"|"@horusscale/horus-bos-core": "^X.Y.Z"|' \
-  fronts/*/package.json
+ANTES=$(grep -o '"@horusscale/horus-bos-core": *"[^"]*"' fronts/app/package.json)
 
-grep -rn 'horus-bos-core' fronts/*/package.json     # comprobar que TODAS quedaron iguales
+# Ancla 2 (sustituye X.Y.Z por la versión elegida) — número EXACTO, sin ^
+sed -i "s|\"@horusscale/horus-bos-core\": *\"[0-9.]*\"|\"@horusscale/horus-bos-core\": \"X.Y.Z\"|" \
+  fronts/app/package.json
 
-npm install                                          # actualiza el lockfile
+DESPUES=$(grep -o '"@horusscale/horus-bos-core": *"[^"]*"' fronts/app/package.json)
+
+# GUARDA CONTRA EL NO-OP SILENCIOSO: un sed que no encuentra el patrón sale con rc=0 y no cambia
+# nada — se lee igual que un éxito. Comparar antes/después es lo único que distingue las dos cosas.
+if [ "$ANTES" = "$DESPUES" ]; then
+  echo "✗✗ EL ANCLA 2 NO CAMBIÓ ($ANTES) — el patrón del sed no casó con este fichero." >&2
+  echo "    NO sigas: revisa fronts/app/package.json a mano antes de continuar." >&2
+  exit 1
+fi
+echo "✓ ancla 2: $ANTES → $DESPUES"
+
+npm install   # actualiza el lockfile
 ```
 
 - `npm install` necesita credencial para el paquete del core (el registro la exige incluso para
   paquetes públicos). Usa la variable de entorno que ya emplea tu build; **no crees un fichero de
   credenciales dentro del repo**.
-- El **lockfile entra en el commit**. Si no, cada build resuelve por su cuenta y dejan de ser
-  reproducibles.
+- El **lockfile entra en el commit**. Si no, cada build resuelve por su cuenta y deja de ser
+  reproducible.
 - Y cambia el ancla 1 donde toque: la variable del servicio de tu plataforma.
 
 ---
