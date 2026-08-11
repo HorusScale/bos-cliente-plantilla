@@ -18,7 +18,7 @@ de una sentada.
 | Fichero | Qué es |
 |---|---|
 | `Dockerfile` | **Backend.** Cuelga de `ghcr.io/horusscale/molde-base:<versión>` y solo aporta el config. Al construir, ensambla dentro de la imagen las extensiones de las capacidades **activas** de ese config. |
-| `Dockerfile.front` | **Una aplicación (front).** Capa Nuxt fina sobre `@horusscale/horus-bos-core`, parametrizada por `FRONT_ID`. ⚠ Necesita un árbol `fronts/<id>/` que **no viene aquí** — ver «Qué NO viene». |
+| `Dockerfile.front` | **Las aplicaciones (fronts).** Capa Nuxt fina sobre `@horusscale/horus-bos-core`: UNA sola imagen sirve TODAS las apps del cliente — cada app se elige en el arranque del contenedor con `NUXT_PUBLIC_BOS_APP`, no en el build. ⚠ Necesita el árbol `fronts/app/` que **no viene aquí** — ver «Qué NO viene». |
 | `config/cliente.bos.json` | **El flujo del cliente**: zonas, roles, equipo, capacidades y pipelines. Es *datos*, no código. Renómbralo al id de tu cliente. |
 | `README.md` | Esto. |
 
@@ -31,7 +31,7 @@ de una sentada.
 2. **Construir el backend**, fijando la versión del Molde:
 
    ```bash
-   docker build --build-arg MOLDE_VERSION=0.20.3 -t <cliente>-bos .
+   docker build --build-arg MOLDE_VERSION=0.30.0 -t <cliente>-bos .
    ```
 
    > **`MOLDE_VERSION` no tiene valor por defecto, y es deliberado.** Un build sin `--build-arg`
@@ -45,7 +45,7 @@ de una sentada.
 ## Qué NO viene, y por qué se dice de frente
 
 - **`fronts/`.** `Dockerfile.front` está aquí porque es la receta que se usa por cliente, pero el
-  árbol `fronts/<id>/` que necesita **hoy lo genera Horus** para cada cliente; no se autoservicio
+  árbol `fronts/app/` que necesita **hoy lo genera Horus** para cada cliente; no se autoservicio
   todavía. Sin ese árbol, ese Dockerfile no tiene qué construir. Pídelo cuando llegues a ese paso.
 - **Nada del producto**: ni `core/`, ni `capabilities/`, ni `extensions/`, ni `scripts/`. Todo eso
   vive en la imagen base (`molde-base`) y en el paquete `@horusscale/horus-bos-core`. Si algo de eso

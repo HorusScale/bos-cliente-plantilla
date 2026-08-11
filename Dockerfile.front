@@ -1,54 +1,92 @@
-# Imagen de una APLICACIÓN (front) del BOS de un cliente — parametrizada por FRONT_ID.
+# Imagen de FRONT del Molde — UNA por cliente, parametrizada por BOS_CONFIG (M6, eje Distribución).
 #
-# Un front es una capa Nuxt fina sobre `@horusscale/horus-bos-core`. La app es SPA (ssr:false) pero el
+# Lo era por FRONT_ID hasta el tramo B (5e4da24bb8c3): había cinco directorios de front y por tanto
+# cinco imágenes por cliente. Hoy hay UNA cáscara y la app se elige AL ARRANCAR, así que lo que
+# distingue una imagen de otra es el CONFIG que hornea, no el front que construye.
+#
+# Un front es una capa Nuxt fina sobre @horusscale/horus-bos-core. La app es SPA (ssr:false) pero el
 # core sirve una ruta de servidor (/api/bos-config) → el runtime es un Nitro node-server, NO estático.
-# Por eso `nuxt build` produce `.output/server/index.mjs` y el contenedor corre ese fichero.
+# Por eso `nuxt build` (preset node-server por defecto) → .output/server/index.mjs, y el contenedor
+# corre `node .output/server/index.mjs`.
 #
-# LA IMAGEN ES CONFIG-SPECIFIC, y por eso la construye el CLIENTE y no Horus: el core precomputa el
-# config efectivo EN BUILD desde `BOS_CONFIG` y lo hornea dentro. Una imagen de front pertenece a UN
-# config, es decir, a UN cliente. Lo que Horus publica es el core (npm) y `molde-base` (GHCR).
-# La URL de Directus NO se hornea: es `NUXT_PUBLIC_DIRECTUS_URL`, inyectada por entorno en runtime.
+# ESTE FICHERO ES UNA PLANTILLA, NO LA RECETA DE UN ARTEFACTO NUESTRO. El Molde NO publica imágenes de
+# front: las publicaba (`molde-front-<id>:X.Y.Z`, hasta la 0.1.5) y se retiraron el 13-jul. La razón está
+# tres líneas más abajo — la imagen es CONFIG-SPECIFIC, así que la que construíamos nosotros llevaba
+# horneado el config del DEMO ("BOS Demo" en la pestaña) y NINGÚN cliente podía usarla. Quien construye
+# un front es el CLIENTE, con este fichero. Lo que el Molde publica es el core (npm) y molde-base (GHCR).
 #
-# ⚠ ESTE DOCKERFILE NECESITA UN ÁRBOL `fronts/<id>/` QUE **NO** VIENE EN ESTA PLANTILLA. Hoy los
-# fronts los genera Horus por cliente (ver README, §«Qué NO viene»). Sin ese árbol, el `npm run build
-# -w fronts/${FRONT_ID}` de abajo no tiene qué construir.
+# CONTEXT-AGNOSTIC (un solo Dockerfile, dos usos):
+#   · Monorepo / repo-fino (CI del Molde): el context es este repo; `npm ci` resuelve el core del
+#     workspace (o del tarball) y construye el front demo. Se usa para EJERCER LOS GATES —secret-free,
+#     smoke de arranque, marca— y la imagen se TIRA: no se publica.
+#   · Repo-fino de cliente (lo produce el Principado): mismo layout fronts/<id>/ + un package.json que
+#     depende de @horusscale/horus-bos-core@^X.Y.Z; `npm ci` lo BAJA del registry. Ver docs/distribucion/fronts.md.
+#
+# La imagen es CONFIG-SPECIFIC: el core precomputa effectiveConfig en build desde BOS_CONFIG y lo hornea.
+# ESO es lo que la hace INPUBLICABLE: una imagen de front pertenece a UN config, es decir, a UN cliente.
+# La URL de Directus NO se hornea: es NUXT_PUBLIC_DIRECTUS_URL, inyectada por entorno en runtime.
 #
 # ──────────────────────────────────────────────────────────────────────────────────────────────────
-# POR QUÉ ESTE FICHERO NO USA `--mount=type=secret`
+# BUILDER-AGNOSTIC — POR QUÉ ESTE FICHERO NO USA `--mount=type=secret`
 #
-# Lo usaba, y NINGÚN front llegó a construirse: hay builders de PaaS que NO soportan los secretos de
-# BuildKit — rechazan el Dockerfile EN EL PARSEO, antes de ejecutar una sola instrucción. Suponer una
-# capacidad del builder de destino nos mordió tres veces en un día.
+# Lo usaba, y NINGÚN front de Winn llegó a construirse: el builder de Railway ("Metal") NO soporta los
+# secretos de BuildKit — rechaza el Dockerfile EN EL PARSEO, antes de ejecutar una sola instrucción.
+# Suponer una capacidad del builder de destino nos ha mordido TRES veces en un día.
 #
 # Esto es Dockerfile v1 PURO: multi-stage y ARG, sin una sola extensión de BuildKit (por eso tampoco
-# lleva la directiva `# syntax=`). Construye igual con BuildKit y con el builder clásico
+# lleva ya la directiva `# syntax=`). Construye igual con BuildKit y con el builder clásico
 # (`DOCKER_BUILDKIT=0`) — medido con los dos.
 #
-# CÓMO SE QUEDA EL TOKEN FUERA DE LA IMAGEN (tres barreras; ninguna es «acordarse»):
+# CÓMO SE QUEDA EL TOKEN FUERA DE LA IMAGEN (tres barreras; ninguna de ellas es "acordarse"):
 #   1. Solo la etapa `deps` DECLARA el ARG del token. `build` y `runtime` no lo declaran → el token no
 #      existe en su entorno: ni `nuxt build` ni ninguna capa publicada pueden hornearlo.
 #   2. El `.npmrc` nace y muere en el MISMO RUN (también si `npm ci` falla).
 #   3. `runtime` copia UN ARTEFACTO DECLARADO, jamás el workdir. La bisagra, y es todo el problema:
-#          COPY --from=build /app/fronts/${FRONT_ID}/.output ./.output   ← artefacto concreto: SEGURO
+#          COPY --from=build /app/fronts/app/.output ./.output   ← artefacto concreto: SEGURO
 #          COPY --from=build /app .                                      ← arrastra el workdir entero
+#
+# Y NINGUNA de las tres es la que decide. `scripts/gate_front_secret_free.sh` CONSTRUYE esta imagen con
+# un token falso y lo BUSCA dentro (docker history · inspect · FS exportado · capas · .npmrc). Si
+# aparece, ROJO. La seguridad no puede depender de que el siguiente escriba bien el COPY: eso es
+# tradición oral, no mecanismo.
 # ──────────────────────────────────────────────────────────────────────────────────────────────────
 #
-# El token del registry es OPCIONAL aquí, pero en la práctica hace falta: GitHub Packages EXIGE token
-# SIEMPRE, incluso para paquetes públicos (verificado: anónimo → HTTP 401).
+# El token es OPCIONAL: sin él, `npm ci` funciona igual cuando el core NO viene del registry (workspace
+# del monorepo, o tarball del repo-fino). Con él, se baja de GitHub Packages, que EXIGE token SIEMPRE,
+# incluso para paquetes públicos (verificado: anónimo → HTTP 401).
 #
-# Build (el tag es DEL CLIENTE — la imagen lleva SU config dentro):
-#   docker build -f Dockerfile.front \
-#     --build-arg FRONT_ID=<id> \
-#     --build-arg BOS_CONFIG=config/cliente.bos.json \
+# Build (el tag es DEL CLIENTE — la imagen lleva SU config dentro; no existe un `molde-front-*`).
+# UNA construcción por cliente, no una por app (tramo B, 5e4da24bb8c3):
+#   docker build -f scripts/templates/front-image/Dockerfile \
+#     --build-arg BOS_CONFIG=config/<cliente>.bos.json \
 #     --build-arg MOLDE_REGISTRY_TOKEN="$MOLDE_REGISTRY_TOKEN" \
-#     -t <cliente>-front-<id>:X.Y.Z .
+#     -t <cliente>-front:X.Y.Z .
+#
+# Y N ARRANQUES de ESA MISMA imagen, uno por app:
+#   docker run -e NUXT_PUBLIC_BOS_APP=ventas   -e NUXT_PUBLIC_DIRECTUS_URL=... <cliente>-front:X.Y.Z
+#   docker run -e NUXT_PUBLIC_BOS_APP=lanzador -e NUXT_PUBLIC_DIRECTUS_URL=... <cliente>-front:X.Y.Z
+#
+# `FRONT_ID` SE FUE. Era el id de la app mientras hubo cinco directorios de front; con uno solo pasó a
+# ser el nombre de una carpeta con UN valor legal, y un parámetro con un valor legal es una rama
+# muerta — nada puede distinguir que funciona de que no esté.
+#
+# Se sostuvo un commit de más a propósito, y conviene saber por qué: la línea
+# `COPY --from=build /app/fronts/app/.output ./.output` es la BISAGRA que
+# `scripts/gate_front_secret_free.sh` sabotea con un `sed` sobre ESE LITERAL EXACTO. Quitar el ARG
+# sin tocar el gate habría dejado su mutante M1 construyendo un Dockerfile sano. Las dos puntas se
+# mueven en el MISMO commit, y no es disciplina: el gate tiene un `cmp -s` que aborta en rojo si su
+# mutación no cambia el fichero, así que un descuadre se caza solo.
+#
+# En Railway: define MOLDE_REGISTRY_TOKEN como variable del servicio. Railway la pasa como --build-arg
+# precisamente porque el ARG está DECLARADO abajo con ese mismo nombre.
 
 ARG NODE_VERSION=24
 
 # ---- deps: la ÚNICA etapa que ve el token ---------------------------------------------------------
 FROM node:${NODE_VERSION}-alpine AS deps
-# Dos nombres para el mismo token: MOLDE_REGISTRY_TOKEN es el que documenta este repo y el que la
-# plataforma inyecta desde su secret store; NPM_TOKEN es el alias corto. Vacíos por defecto.
+# Dos nombres para el mismo token: MOLDE_REGISTRY_TOKEN es el que documenta el repo de cliente y el que
+# Railway inyecta desde su secret store; NPM_TOKEN es el alias corto. Vacíos por defecto → un build sin
+# credencial (CI, monorepo) sigue funcionando.
 ARG MOLDE_REGISTRY_TOKEN=""
 ARG NPM_TOKEN=""
 WORKDIR /app
@@ -65,32 +103,75 @@ RUN TOKEN="${MOLDE_REGISTRY_TOKEN:-$NPM_TOKEN}"; \
     rm -f .npmrc; \
     exit $rc
 
-# ---- build: NO declara el ARG del token → el token no existe en su entorno ------------------------
+# ---- build: NO declara el ARG → el token no existe en su entorno ----------------------------------
 # Aquí corre `nuxt build`. No puede hornear un token que no está en el env — ni por accidente, ni por
 # una dependencia curiosa que serialice process.env. Es imposibilidad, no vigilancia.
 FROM node:${NODE_VERSION}-alpine AS build
-ARG FRONT_ID=ventas
-ARG BOS_CONFIG=config/cliente.bos.json
+ARG BOS_CONFIG=config/demo.bos.json
 WORKDIR /app
 # Copia interna builder→builder (NUNCA a la imagen publicada): el árbol ya instalado, y sin .npmrc.
 COPY --from=deps /app ./
-# Identidad del front.
-ENV BOS_ACTIVE_PIPELINE=${FRONT_ID}
+# AQUÍ NO SE HORNEA NINGUNA IDENTIDAD, Y ES EL MECANISMO — no un olvido (tramo B, 5e4da24bb8c3).
+#
+# La historia de esta línea, que es la del eje entero:
+#   1. `ENV BOS_ACTIVE_PIPELINE=${FRONT_ID}` — el build horneaba el PIPELINE, así que la imagen
+#      quedaba atada a una app y un pipeline; y en una app transversal el "pipeline activo" valía su
+#      propio id (en Admin, "admin", que no es ningún pipeline). De esa colisión salieron tres
+#      parches que curaban síntomas de la misma causa.
+#   2. `ENV NUXT_PUBLIC_BOS_APP=${FRONT_ID}` (tramo A) — ya no horneaba el pipeline, solo el default
+#      de la app. Decía la verdad mientras hubo CINCO directorios de front: el directorio ERA la app.
+#   3. Nada (aquí) — con UNA cáscara para todas las apps, `FRONT_ID` es el nombre de una CARPETA.
+#      Hornearlo como identidad hornearía una mentira, y `resolveAppId` la rechazaría: 'app' no está
+#      en `apps[]` ni es el lanzador.
+#
+# Consecuencia deliberada: `NUXT_PUBLIC_BOS_APP` es OBLIGATORIA al arrancar el contenedor. Sin ella
+# la imagen NO ARRANCA, y eso es lo que se busca — el default horneado era la otra puerta del mismo
+# apagón mudo que cerró `resolveAppId`: un servicio mal arrancado no falla, SIRVE OTRA APP, con su
+# nav, sus datos y sus permisos. Cerrar una puerta y dejar la otra no cierra nada.
+#
+# «NO ARRANCA» ES VERDAD DESDE EL TICKET 24715ffedd6f, Y ANTES NO LO ERA — conviene saberlo, porque
+# esta frase lleva aquí desde el tramo B afirmando de más. `resolveAppId` corría en el NAVEGADOR
+# (composable de Vue, front SPA): medido con esta misma imagen y `NUXT_PUBLIC_BOS_APP="no-existe-
+# esta-app"`, el contenedor quedaba `Running`, escuchando y respondiendo 200. Hoy la misma guarda
+# corre en el arranque de Nitro (`core/server/plugins/app-declarada-al-arrancar.ts`), que sí es Node
+# y sí puede morir, y lo sostiene `scripts/gate_front_app_arranque.sh` en las dos direcciones.
+#
+# QUÉ SIGNIFICA, ENTONCES, QUE ESTE CONTENEDOR ESTÉ VIVO: que el proceso escucha Y que la app
+# declarada está en el catálogo que este build horneó. NO significa que Directus responda, ni que
+# alguien pueda autenticarse, ni que la pantalla pinte — nada de eso lo mide el arranque.
+#
+#   docker run -e NUXT_PUBLIC_BOS_APP=<id de apps[] o 'lanzador'> ...
 # BOS_CONFIG ABSOLUTO (anclado a /app): `npm run build -w` fija el cwd al front, así que un config
-# RELATIVO no se resolvería — el config vive en la raíz del repo, no en fronts/<id>/.
+# RELATIVO no se resolvería (el config del cliente vive en la raíz del repo, no en fronts/<id>/).
+# Con ruta absoluta el core lo resuelve sea cual sea el layout — monorepo o repo-fino de cliente.
 ENV BOS_CONFIG=/app/${BOS_CONFIG}
-RUN npm run build -w fronts/${FRONT_ID}
+RUN npm run build -w fronts/app
 
 # ---- runtime: LO QUE SE PUBLICA. Copia un artefacto declarado, jamás el workdir -------------------
 FROM node:${NODE_VERSION}-alpine AS runtime
-ARG FRONT_ID=ventas
 ENV NODE_ENV=production
 # Directus destino: se inyecta por entorno en runtime (secret-free, por-entorno). Placeholder vacío.
 ENV NUXT_PUBLIC_DIRECTUS_URL=""
+# QUIÉN ES ESTE SERVICIO — también en runtime, por el MISMO carril que la URL de arriba (ticket
+# ce4d90565973). Nuxt sobrescribe `runtimeConfig.public` con `NUXT_PUBLIC_<CLAVE>` al arrancar, y
+# eso llega al payload que el navegador lee:
+#
+#   NUXT_PUBLIC_BOS_APP       id de la app que sirve este servicio (de `apps[]`, o 'lanzador')
+#   NUXT_PUBLIC_BOS_PIPELINE  id del pipeline; VACÍO en una app transversal, y vacío es la
+#                             respuesta correcta, no un olvido. Si la app ES un pipeline, se deriva
+#                             sola y no hace falta ponerlo.
+#
+# NO SE DECLARAN AQUÍ CON PLACEHOLDER VACÍO, Y ESO ES DELIBERADO. La sobrescritura de Nuxt se
+# dispara porque la variable ESTÁ PUESTA, no porque tenga contenido: un `ENV NUXT_PUBLIC_BOS_APP=""`
+# pisaría con vacío la identidad que el build horneó y la imagen arrancaría sin saber qué app es.
+# Está medido en docs/distribucion/falsificacion-m7.md con la otra variable — con el build horneando
+# un localhost por defecto, el placeholder vacío llegó al cliente como `directusUrl:""`. Allí ese
+# vacío es lo que se quiere (un front sin backend debe fallar de forma ruidosa); aquí sería un
+# apagón silencioso. Sin declarar, el default del build sobrevive y la plataforma puede pisarlo.
 # Nitro node-server escucha en 0.0.0.0:3000 por defecto.
 ENV HOST=0.0.0.0
 ENV PORT=3000
 WORKDIR /app
-COPY --from=build /app/fronts/${FRONT_ID}/.output ./.output
+COPY --from=build /app/fronts/app/.output ./.output
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
