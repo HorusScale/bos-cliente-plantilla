@@ -4,17 +4,17 @@
   "client": "cliente",
   "label": "Nombre del Cliente",
 
-  "_zonas": "QUIÉN ENTRA. Una zona es el conjunto de áreas que abre un rol, con su `scope`: `own` ve su cartera + lo que no tiene dueño · `read_all` lee todo · `all` es CRUD completo · `app`/`team` son puertas a apps transversales, no de datos. DOS TRAMPAS MEDIDAS: (1) tiene que existir ALGUNA zona de scope `all`, o la gestión de formularios y de Ajustes queda inalcanzable para cualquiera; (2) si activas una capacidad, sus superficies piden una zona concreta — `access` aporta Usuarios y Roles, que piden una zona de scope `team`, y sin ella el build FALLA con «SUPERFICIE HUÉRFANA».",
+  "_zonas": "QUIÉN ENTRA. Una zona es el conjunto de áreas que abre un rol, con su `scope`: `own` ve su cartera + lo que no tiene dueño · `read_all` lee todo · `all` es CRUD completo · `app`/`team` son puertas a apps transversales, no de datos. DOS TRAMPAS MEDIDAS: (1) si activas una capacidad, sus superficies piden una zona concreta — `access` aporta Usuarios y Roles, que piden una zona de scope `team`, y sin ella el build FALLA con «SUPERFICIE HUÉRFANA»; (2) si activas `formularios` o `ajustes`, su gestión exige una zona de scope `all` SOBRE EL PIPELINE, y este catálogo NO trae ninguna (ver la nota de `administrador`) — y ÉSTA no la caza el build: la superficie aparece igual, nadie te avisa, y sencillamente nadie puede gestionarla. NO hay zona `admin` en el catálogo: era un residuo del destilado inicial de JD (una app tenía UNA sola zona de mando dentro del propio pipeline) que no concuerda con la arquitectura del Molde, donde el mando vive en su PROPIA app transversal (Andrés, 12-ago, ticket `49707a2e8965`) — retirado, no reubicado, y era la ÚNICA zona `scope: all` de este catálogo. Si tu cliente necesita CRUD completo desde dentro de un pipeline (por ejemplo para activar `formularios`/`ajustes`), declara esa zona explícitamente para ese pipeline; no la copies de aquí.",
   "zonas": [
     { "key": "operador", "label": "Operador", "scope": "own" },
-    { "key": "admin", "label": "Admin", "scope": "all" },
     { "key": "gestor", "label": "Gestor", "scope": "team" }
   ],
 
   "_roles": "UN ROL ES ACCESO A UNA APP Y A UNA ZONA DENTRO DE ELLA: `accesos` mapea app → zona. Multi-rol es aditivo (un usuario porta N roles y ve la unión). `label` es el nombre de la policy en Directus: no lo repitas entre roles.",
+  "_administrador_sin_ventas": "DECISIÓN, no olvido (12-ago, ticket `49707a2e8965`): `administrador` NO tiene entrada `ventas` a propósito. Antes mapeaba a la zona `admin` (scope all, CRUD completo) dentro del propio pipeline — residuo de JD, retirado. La opción obvia habría sido bajarlo a `operador` (scope own), pero eso da una lista VACÍA (un administrador típicamente no posee ningún expediente) que se lee como bug, no como ausencia de acceso — y la plantilla hoy tampoco declara ninguna zona `read_all` que fuera el nivel correcto. Su mando total sigue intacto vía `admin: gestor` (la app Admin). Si tu cliente SÍ necesita que su administrador vea el pipeline, declara una zona explícita para eso — no reintroduzcas `admin` aquí.",
   "roles": [
     { "key": "operador", "label": "Operador", "accesos": { "ventas": "operador" } },
-    { "key": "administrador", "label": "Administrador", "accesos": { "ventas": "admin", "admin": "gestor" } }
+    { "key": "administrador", "label": "Administrador", "accesos": { "admin": "gestor" } }
   ],
 
   "_team": "⚠ EL `password` ES OBLIGATORIO AQUÍ, Y VA EN CLARO. Si lo omites, el build NO falla: siembra una clave por defecto SIN AVISAR, y el usuario nace con una contraseña conocida y adivinable. Ponlo siempre, y cámbialo ANTES de construir. NO lo commitees con un valor real: este fichero vive en el repo del cliente y el historial de git no se borra. Lo sano es aplicar el equipo desde una copia local y dejar `team` vacío en el repo versionado.",
@@ -38,7 +38,7 @@
       "label": "Ventas",
       "kind": "pipeline",
       "url": "https://CAMBIAR-ventas.ejemplo",
-      "zonas": ["operador", "admin"]
+      "zonas": ["operador"]
     },
     {
       "id": "admin",
