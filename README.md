@@ -9,7 +9,7 @@ crea un repo nuevo con estos ficheros y sin el historial de esta plantilla.
 > envejece mal.
 
 Lo que hay aquí es **la cáscara**: el config del cliente y las recetas para construir sus imágenes.
-El producto —el motor, las 28 capacidades, el core de las aplicaciones— **no vive aquí**: viaja en la
+El producto —el motor, las capacidades, el core de las aplicaciones— **no vive aquí**: viaja en la
 imagen base y en el paquete del core, ambos versionados. Por eso este repo es pequeño y se entiende
 de una sentada.
 

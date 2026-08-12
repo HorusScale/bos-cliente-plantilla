@@ -4,7 +4,7 @@
 # Cuelga de la imagen base versionada del Molde y solo aporta el config del cliente. `build.py`
 # ensambla, DENTRO de esta imagen, las extensiones de las capacidades ACTIVAS de ese config (slimming
 # por cliente). El repo de cliente = este Dockerfile + config/<cliente>.bos.json. Sin motor y sin las
-# 28 capacidades en el checkout: eso vive en la imagen base.
+# capacidades en el checkout: eso vive en la imagen base.
 #
 # Build:  docker build --build-arg MOLDE_VERSION=X.Y.Z -t <cliente>-bos .
 
