@@ -31,7 +31,7 @@ de una sentada.
 2. **Construir el backend**, fijando la versión del Molde:
 
    ```bash
-   docker build --build-arg MOLDE_VERSION=0.42.0 -t <cliente>-bos .
+   docker build --build-arg MOLDE_VERSION=0.43.0 -t <cliente>-bos .
    ```
 
    > **`MOLDE_VERSION` no tiene valor por defecto, y es deliberado.** Un build sin `--build-arg`
