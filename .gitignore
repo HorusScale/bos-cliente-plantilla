@@ -1,7 +1,1 @@
-# `graphify update` escribe aquí — tooling interno de Horus, nunca producto del cliente (ticket
-# 98294d57bfb2). Entre la regeneración y la reubicación a ~/.horusscale/graphs/<cliente>/<repo>/
-# hay una ventana con varios MB sin ignorar: un `git add -A` de cualquiera en ese hueco se los
-# lleva al repo, y `graph.json` no se mira en un diff — una vez en el historial no se va con un
-# `git rm`. Que quien regenere se ACUERDE de reubicarlo es la forma más débil de regla que
-# reconocemos, y aquí la plataforma puede cumplirla sola.
 graphify-out/
