@@ -4,7 +4,7 @@
 # cinco imágenes por cliente. Hoy hay UNA cáscara y la app se elige AL ARRANCAR, así que lo que
 # distingue una imagen de otra es el CONFIG que hornea, no el front que construye.
 #
-# Un front es una capa Nuxt fina sobre @horusscale/horus-bos-core. La app es SPA (ssr:false) pero el
+# Un front es una capa Nuxt fina sobre @zurielsistemas/bos-core. La app es SPA (ssr:false) pero el
 # core sirve una ruta de servidor (/api/bos-config) → el runtime es un Nitro node-server, NO estático.
 # Por eso `nuxt build` (preset node-server por defecto) → .output/server/index.mjs, y el contenedor
 # corre `node .output/server/index.mjs`.
@@ -20,7 +20,7 @@
 #     workspace (o del tarball) y construye el front demo. Se usa para EJERCER LOS GATES —secret-free,
 #     smoke de arranque, marca— y la imagen se TIRA: no se publica.
 #   · Repo-fino de cliente (lo produce el Principado): mismo layout fronts/<id>/ + un package.json que
-#     depende de @horusscale/horus-bos-core@^X.Y.Z; `npm ci` lo BAJA del registry. Ver docs/distribucion/fronts.md.
+#     depende de @zurielsistemas/bos-core@^X.Y.Z; `npm ci` lo BAJA del registry. Ver docs/distribucion/fronts.md.
 #
 # La imagen es CONFIG-SPECIFIC: el core precomputa effectiveConfig en build desde BOS_CONFIG y lo hornea.
 # ESO es lo que la hace INPUBLICABLE: una imagen de front pertenece a UN config, es decir, a UN cliente.
@@ -96,7 +96,7 @@ COPY . .
 # El `rm` es incondicional (corre también si `npm ci` falla) y `exit $rc` no se traga el fallo.
 RUN TOKEN="${MOLDE_REGISTRY_TOKEN:-$NPM_TOKEN}"; \
     if [ -n "$TOKEN" ]; then \
-      printf '@horusscale:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' \
+      printf '@zurielsistemas:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n' \
         "$TOKEN" > .npmrc; \
     fi; \
     npm ci; rc=$?; \
