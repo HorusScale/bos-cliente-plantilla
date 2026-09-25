@@ -31,7 +31,7 @@ de una sentada.
 2. **Construir el backend**, fijando la versión del Molde:
 
    ```bash
-   docker build --build-arg MOLDE_VERSION=0.45.0 -t <cliente>-bos .
+   docker build --build-arg MOLDE_VERSION=0.46.0 -t <cliente>-bos .
    ```
 
    > **`MOLDE_VERSION` no tiene valor por defecto, y es deliberado.** Un build sin `--build-arg`
@@ -54,7 +54,7 @@ de una sentada.
 - **Secretos.** Este repo no lleva ni una credencial, y no debe llevarla nunca: lo que se commitea
   aquí queda en el historial de git para siempre.
 
-## Dos avisos que cuestan caro si se aprenden tarde
+## Tres avisos que cuestan caro si se aprenden tarde
 
 **El `password` del equipo.** En `team[]` va **en claro**, y si lo omites el build siembra uno por
 defecto **sin avisar**: el usuario nace con una clave conocida. Cámbialo antes de construir. Lo sano
@@ -62,6 +62,13 @@ es aplicar el equipo desde una copia local y dejar `team` vacío en lo que se ve
 
 **Las apps y su lanzador van juntos.** En cuanto declares `apps[]`, el build **exige** `launcher_url`
 y se niega a construir sin ella. No es capricho: la marca del shell enlazaría a un botón muerto.
+
+**Los ficheros subidos necesitan un volumen, antes del primer uso.** Directus los guarda en el disco
+del contenedor (`/directus/uploads`), y cada despliegue arranca un contenedor nuevo: sin un volumen
+montado ahí (o un driver S3), las fotos, justificantes y contratos **se pierden en el siguiente
+despliegue** y no se recuperan. En Railway: volumen en el servicio del backend con mount path
+`/directus/uploads` y la variable `RAILWAY_RUN_UID=0` (el volumen se monta como root). Desde el Molde
+0.46.0 el arranque lo avisa en el log; que no llegue a hacer falta leerlo.
 
 ## Y si el build falla
 
