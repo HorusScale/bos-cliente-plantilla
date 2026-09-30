@@ -105,13 +105,16 @@ python3 -c "import secrets; print('KEY=' + secrets.token_hex(32)); print('SECRET
 > reutilizan entre clientes, dos sistemas distintos firman con la misma llave. Genera un par nuevo por
 > instancia y guárdalo **en el gestor de secretos de la plataforma**, nunca en este repo.
 
-Y para que el sistema pueda configurarse solo al desplegar, hacen falta también las credenciales de
-la cuenta administradora inicial:
+Y para que el sistema pueda configurarse solo al desplegar, hace falta la cuenta de sistema con la
+que se configura:
 
 | Variable | Qué es |
 |---|---|
-| `ADMIN_EMAIL` | Correo de la cuenta administradora inicial. |
-| `ADMIN_PASSWORD` | Su contraseña. **Genera una fuerte; no la reutilices.** |
+| `ADMIN_EMAIL` | Correo de la cuenta de sistema (la crea el primer despliegue). Nadie entra con ella. |
+| `ADMIN_PASSWORD` | **No la pongas** (desde el Molde 0.52) si el backend se configura al arrancar (`BOS_APPLY_ON_BOOT=true`, el caso de Railway). En cada arranque, el sistema le da a esa cuenta una credencial de un solo uso y la destruye al terminar. Nadie conoce una contraseña de administrador que pueda filtrarse. Solo hace falta si usas el «comando de publicación» del paso 4. |
+
+Las personas que administran la base de datos lo hacen con **su propia cuenta**, con verificación en
+dos pasos. Actívala en su perfil del panel y marca «Require 2FA» en la policy de administrador.
 
 ---
 
@@ -144,8 +147,8 @@ grep -n '^ARG.*TOKEN' Dockerfile.front
 - **Origen:** este repo. **Receta:** el `Dockerfile` de la raíz.
 - **Variables de construcción:** `MOLDE_VERSION` con la versión a fijar. **No tiene valor por
   defecto**: sin ella el build falla en seco, y es deliberado.
-- **Variables de ejecución:** las del paso 2 (`KEY`, `SECRET`, conexión a la base, `ADMIN_EMAIL`,
-  `ADMIN_PASSWORD`).
+- **Variables de ejecución:** las del paso 2 (`KEY`, `SECRET`, conexión a la base, `ADMIN_EMAIL`;
+  `ADMIN_PASSWORD` solo con «comando de publicación»).
 - **Enlaza la base de datos** al servicio para que la conexión se resuelva sola.
 
 > **Lo que configura el sistema se ejecuta una vez por despliegue, no una vez por copia.** Si la
