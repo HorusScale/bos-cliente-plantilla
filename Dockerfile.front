@@ -145,6 +145,32 @@ COPY --from=deps /app ./
 # RELATIVO no se resolvería (el config del cliente vive en la raíz del repo, no en fronts/<id>/).
 # Con ruta absoluta el core lo resuelve sea cual sea el layout — monorepo o repo-fino de cliente.
 ENV BOS_CONFIG=/app/${BOS_CONFIG}
+# LA RED DE LOS `.vue`, ANTES DE CONSTRUIR (0.55, C1 del inventario de ADO). `nuxt typecheck` no
+# entra en el cuerpo de un `<script setup>`: un identificador que no existe CONSTRUYE EN VERDE y
+# revienta en el navegador («X is not defined» al usar esa pantalla). En ADO se colaron tres en una
+# tarde, y las encontró la persona usando la app. `revisar_sfc.py` las caza leyendo los `.vue`
+# PROPIOS del proyecto (`fronts/*/app` y su `client_layer`); si encuentra algo, este RUN falla y la
+# imagen no se construye — el fallo se ve en el log del build, no en producción.
+#
+# VIAJA EN EL PAQUETE DEL CORE, no en el repo del proyecto: lo trae el mismo `npm ci` de arriba, con
+# el mismo pin exacto, y por eso sabe qué auto-importa ESTE core (sin esa lista daría falsos
+# positivos a montones). Se localiza con `require.resolve` desde el front y no con una ruta fija en
+# `node_modules/`: npm puede hoistear el core o anidarlo, y en el monorepo es un symlink.
+#
+# Python solo vive en ESTA etapa: `runtime` copia `.output` y nada más, así que la imagen publicada
+# no lo lleva (ni el `apk`).
+#
+# `BOS_REVISAR_SFC=0` (variable del servicio de front, que Railway pasa como build-arg porque el
+# ARG está declarado) la salta con un aviso en el log. Es una SALIDA DE EMERGENCIA ante un falso
+# positivo de la red, no un modo de trabajo: con ella, nada mira esos `.vue`.
+ARG BOS_REVISAR_SFC=1
+RUN if [ "$BOS_REVISAR_SFC" = "0" ]; then \
+      echo "⚠ BOS_REVISAR_SFC=0 — la red de los .vue está APAGADA en este build: nada comprueba que los identificadores que usan existan." >&2; \
+    else \
+      apk add --no-cache python3 >/dev/null \
+      && CORE="$(node -p "require('path').dirname(require.resolve('@horusscale/horus-bos-core/package.json', { paths: ['/app/fronts/app'] }))")" \
+      && python3 "$CORE/herramientas/revisar_sfc.py" --proyecto /app; \
+    fi
 RUN npm run build -w fronts/app
 
 # ---- runtime: LO QUE SE PUBLICA. Copia un artefacto declarado, jamás el workdir -------------------
