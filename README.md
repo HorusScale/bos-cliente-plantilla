@@ -31,7 +31,7 @@ de una sentada.
 2. **Construir el backend**, fijando la versión del Molde:
 
    ```bash
-   docker build --build-arg MOLDE_VERSION=0.55.0 -t <cliente>-bos .
+   docker build --build-arg MOLDE_VERSION=0.56.0 -t <cliente>-bos .
    ```
 
    > **`MOLDE_VERSION` no tiene valor por defecto, y es deliberado.** Un build sin `--build-arg`
@@ -54,7 +54,7 @@ de una sentada.
 - **Secretos.** Este repo no lleva ni una credencial, y no debe llevarla nunca: lo que se commitea
   aquí queda en el historial de git para siempre.
 
-## Tres avisos que cuestan caro si se aprenden tarde
+## Cuatro avisos que cuestan caro si se aprenden tarde
 
 **El `password` del equipo.** En `team[]` va **en claro**, y si lo omites el build siembra uno por
 defecto **sin avisar**: el usuario nace con una clave conocida. Cámbialo antes de construir. Lo sano
@@ -69,6 +69,14 @@ montado ahí (o un driver S3), las fotos, justificantes y contratos **se pierden
 despliegue** y no se recuperan. En Railway: volumen en el servicio del backend con mount path
 `/directus/uploads` y la variable `RAILWAY_RUN_UID=0` (el volumen se monta como root). Desde el Molde
 0.46.0 el arranque lo avisa en el log; que no llegue a hacer falta leerlo.
+
+**El correo es obligatorio, desde el primer despliegue.** Sin él nadie puede recuperar su contraseña
+por correo («He olvidado mi contraseña»); solo queda el «Enlace de acceso» que genera quien gestiona
+el equipo. Se configura en el servicio del **backend**, con una de estas tres vías:
+`RESEND_API_KEY` + `EMAIL_FROM`; `BREVO_API_KEY` + `EMAIL_FROM`; o SMTP por el puerto 465 con
+`EMAIL_SMTP_HOST`, `EMAIL_SMTP_USER` y `EMAIL_SMTP_PASSWORD` (`EMAIL_FROM` opcional). El remitente
+se firma con `EMAIL_FROM_NOMBRE` o, si falta, con el nombre del config. Desde el Molde 0.56.0 el
+arranque dice en el log qué proveedor está activo, y avisa en cada arranque si no hay ninguno.
 
 ## Y si el build falla
 
